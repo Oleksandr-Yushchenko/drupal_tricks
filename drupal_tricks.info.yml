@@ -1,0 +1,5 @@
+name: Drupal Tricks and Tweaks
+type: module
+description: Examples of drupal tricks and tweaks.
+package: Custom
+core_version_requirement: ^9 || ^10
