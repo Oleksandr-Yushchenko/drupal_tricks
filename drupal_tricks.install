@@ -4,3 +4,212 @@
  * @file
  * Install file for this.
  */
+
+use Drupal\Core\Config\FileStorage;
+use Drupal\Core\Config\InstallStorage;
+use Drupal\Core\Field\FieldStorageDefinitionInterface;
+use Drupal\Core\Site\Settings;
+use Drupal\field\Entity\FieldConfig;
+use Drupal\field\Entity\FieldStorageConfig;
+
+/**
+ * Install field config from config sync directory.
+ */
+function drupal_tricks_update_9001(&$sandbox) {
+  $field_storage = [
+    'field.storage.menu_link_content.field_image',
+  ];
+  $field_field = [
+    'field.field.menu_link_content.main.field_image',
+  ];
+
+  $config_path = Settings::get('config_sync_directory');
+  $source = new FileStorage($config_path);
+
+  foreach ($field_storage as $field_storage_name) {
+    $config = $source->read($field_storage_name);
+    if (!FieldStorageConfig::load($config['id'])) {
+      $storage = FieldStorageConfig::create($config);
+      $storage->save();
+    }
+  }
+  foreach ($field_field as $field_field_name) {
+    $config = $source->read($field_field_name);
+    if (!FieldConfig::load($config['id'])) {
+      $field = FieldConfig::create($config);
+      $field->save();
+    }
+  }
+}
+
+/**
+ * Install config from module config directory.
+ */
+function drupal_tricks_update_9002(&$sandbox) {
+  $field_storage = [
+    'field.storage.taxonomy_term.remote_id',
+  ];
+  $field_field = [
+    'field.field.taxonomy_term.product_brand.remote_id',
+    'field.field.taxonomy_term.product_category.remote_id',
+  ];
+
+  /** @var \Drupal\Core\Extension\ModuleExtensionList $module_extension_list */
+  $module_extension_list = \Drupal::service('extension.list.module');
+  $config_path = $module_extension_list->getPath('MODULE_NAME') . '/' . InstallStorage::CONFIG_INSTALL_DIRECTORY;
+  $source = new FileStorage($config_path);
+
+  foreach ($field_storage as $field_storage_name) {
+    $config = $source->read($field_storage_name);
+    if (!FieldStorageConfig::load($config['id'])) {
+      $storage = FieldStorageConfig::create($config);
+      $storage->save();
+    }
+  }
+
+  foreach ($field_field as $field_field_name) {
+    $config = $source->read($field_field_name);
+    if (!FieldConfig::load($config['id'])) {
+      $field = FieldConfig::create($config);
+      $field->save();
+    }
+  }
+}
+
+
+/**
+ * Install config with translations from module config directory.
+ */
+function drupal_tricks_update_9003(&$sandbox) {
+  // Config names to import.
+  $config_names = [
+    'views.view.VIEW_NAME',
+    'dashboards.dashboard.MY_DASHBOARD',
+  ];
+
+  /** @var \Drupal\Core\Extension\ModuleExtensionList $module_extension_list */
+  $module_extension_list = \Drupal::service('extension.list.module');
+  $config_path = $module_extension_list->getPath('MODULE_NAME') . '/' . InstallStorage::CONFIG_OPTIONAL_DIRECTORY;
+
+  // Import main config.
+  $source = new FileStorage($config_path);
+  /** @var \Drupal\Core\Config\StorageInterface $config_storage */
+  $config_storage = \Drupal::service('config.storage');
+  foreach ($config_names as $config_name) {
+    $config_storage->write($config_name, $source->read($config_name));
+  }
+
+  // Import translations config.
+  $collection = 'language.nb';
+  /** @var \Drupal\Core\Config\CachedStorage $config_storage */
+  $config_storage = \Drupal::service('config.storage')
+    ->createCollection($collection);
+  $source = new FileStorage($config_path, $collection);
+  foreach ($config_names as $config_name) {
+    $config_storage->write($config_name, $source->read($config_name));
+  }
+}
+
+/**
+ * Install module config.
+ */
+function drupal_tricks_update_9004(&$sandbox) {
+  $config_name = 'drupal_tricks.settings';
+
+  /** @var \Drupal\Core\Extension\ModuleExtensionList $module_extension_list */
+  $module_extension_list = \Drupal::service('extension.list.module');
+  $config_path = $module_extension_list->getPath('drupal_tricks') . '/' . InstallStorage::CONFIG_INSTALL_DIRECTORY;
+  $source = new FileStorage($config_path);
+  /** @var \Drupal\Core\Config\StorageInterface $config_storage */
+  $config_storage = \Drupal::service('config.storage');
+  $config_storage->write($config_name, $source->read($config_name));
+}
+
+/**
+ * Change field cardinality from single to multiple.
+ */
+function drupal_tricks_update_9005(&$sandbox) {
+  $field_name = 'product_badge';
+  $entity_type_id = 'commerce_product';
+
+  // Update definitions and schema.
+  $manager = \Drupal::entityDefinitionUpdateManager();
+  /** @var \Drupal\field\FieldStorageConfigInterface $storage_definition */
+  $storage_definition = $manager->getFieldStorageDefinition($field_name, $entity_type_id);
+  $storage_definition->setCardinality(FieldStorageDefinitionInterface::CARDINALITY_UNLIMITED);
+  $manager->updateFieldStorageDefinition($storage_definition);
+
+  $field = FieldStorageConfig::loadByName($entity_type_id, $field_name);
+  if ($field) {
+    // Update cardinality.
+    $field->setCardinality(FieldStorageDefinitionInterface::CARDINALITY_UNLIMITED);
+    $field->save();
+  }
+}
+
+/**
+ * Install the Color Field module and create product badge color field.
+ */
+function drupal_tricks_update_9006(&$sandbox) {
+  $installer = \Drupal::service('module_installer');
+  // Install the Color Field module.
+  $installer->install(['color_field']);
+
+  $field_storage = 'field.storage.taxonomy_term.product_badge_color';
+  $field_field = 'field.field.taxonomy_term.product_badge.product_badge_color';
+
+  /** @var \Drupal\Core\Extension\ModuleExtensionList $module_extension_list */
+  $module_extension_list = \Drupal::service('extension.list.module');
+  $config_path = $module_extension_list->getPath('drupal_tricks') . '/' . InstallStorage::CONFIG_INSTALL_DIRECTORY;
+  $source = new FileStorage($config_path);
+
+
+  // Obtain the storage manager for field storage bases.
+  // Create a new field from the yaml configuration and save.
+  $storage_config = $source->read($field_storage);
+  \Drupal::entityTypeManager()->getStorage('field_storage_config')
+    ->create($storage_config)
+    ->save();
+
+  // Obtain the storage manager for field instances.
+  // Create a new field instance from the yaml configuration and save.
+  $field_config = $source->read($field_field);
+  \Drupal::entityTypeManager()->getStorage('field_config')
+    ->create($field_config)
+    ->save();
+
+  if (\Drupal::isConfigSyncing()) {
+    return;
+  }
+  // Expose the color field on product badge form displays.
+  $form_storage = \Drupal::entityTypeManager()
+    ->getStorage('entity_form_display');
+  /** @var \Drupal\Core\Entity\Display\EntityViewDisplayInterface $default_display */
+  $default_display = $form_storage->load('taxonomy_term.product_badge.default');
+  if ($default_display) {
+    $default_display->setComponent('product_badge_color', [
+      'type' => 'color_field_widget_box',
+      'settings' => [
+        'default_colors' => '#ffffff,#000000',
+      ],
+      'weight' => 3,
+    ]);
+    $default_display->save();
+  }
+  // Expose the color field on product badge view displays.
+  $view_storage = \Drupal::entityTypeManager()
+    ->getStorage('entity_view_display');
+  /** @var \Drupal\Core\Entity\Display\EntityViewDisplayInterface $default_display */
+  $default_display = $view_storage->load('taxonomy_term.product_badge.default');
+  if ($default_display) {
+    $default_display->setComponent('product_badge_color', [
+      'type' => 'color_field_formatter_text',
+      'settings' => [
+        'format' => 'hex',
+        'opacity' => FALSE,
+      ],
+      'weight' => 3,
+    ]);
+    $default_display->save();
+  }
+}
