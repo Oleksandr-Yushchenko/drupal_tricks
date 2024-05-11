@@ -76,7 +76,6 @@ function drupal_tricks_update_9002(&$sandbox) {
   }
 }
 
-
 /**
  * Install config with translations from module config directory.
  */
@@ -162,7 +161,6 @@ function drupal_tricks_update_9006(&$sandbox) {
   $module_extension_list = \Drupal::service('extension.list.module');
   $config_path = $module_extension_list->getPath('drupal_tricks') . '/' . InstallStorage::CONFIG_INSTALL_DIRECTORY;
   $source = new FileStorage($config_path);
-
 
   // Obtain the storage manager for field storage bases.
   // Create a new field from the yaml configuration and save.
