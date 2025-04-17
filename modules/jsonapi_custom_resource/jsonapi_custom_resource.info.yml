@@ -1,0 +1,7 @@
+name: 'JSON:API Custom Resource'
+type: module
+description: 'Examples of custom JSON:API resources.'
+core_version_requirement: ^10
+dependencies:
+  - jsonapi:jsonapi
+  - jsonapi_resources:jsonapi_resources
